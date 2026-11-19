@@ -12,13 +12,39 @@ service cloud.firestore {
         && get(spacePath(spaceId)).data.profiles.size() == 2
         && request.auth.uid in [get(spacePath(spaceId)).data.profiles[0].id, get(spacePath(spaceId)).data.profiles[1].id];
     }
+    function nonempty(value, max) { return value is string && value.size() > 0 && value.size() <= max && value.matches('(?s).*[^ \\t\\r\\n].*'); }
+    function validURL(value) { return value is string && value.size() <= 2048 && (value == '' || value.matches('https?://[^ /]+.*')); }
+    function validDate(value) { return value is string && value.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'); }
+    function authored(data) { return data.profileId == request.auth.uid && data.createdAt == request.time; }
     match /betaMembers/{uid} { allow get: if signedIn() && request.auth.uid == uid; }
     match /spaces/{spaceId} {
       allow get: if isMember(spaceId);
       match /{kind}/{id} {
         allow read: if kind in ['events', 'tasks', 'recipes', 'menu', 'cycles'] && isMember(spaceId);
       }
-      match /events/{eventId}/comments/{commentId} { allow read: if isMember(spaceId); }
+      match /events/{eventId} {
+        allow create: if isMember(spaceId) && authored(request.resource.data)
+          && request.resource.data.keys().hasOnly(['profileId','createdAt','title','description','date','time','image','info','attendance'])
+          && nonempty(request.resource.data.title, 120) && nonempty(request.resource.data.description, 5000)
+          && validDate(request.resource.data.date) && request.resource.data.time is string && request.resource.data.time.matches('([01][0-9]|2[0-3]):[0-5][0-9]')
+          && validURL(request.resource.data.image) && validURL(request.resource.data.info)
+          && request.resource.data.attendance is map && request.resource.data.attendance.size() == 0;
+        allow update: if isMember(spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance'])
+          && request.resource.data.attendance is map
+          && request.resource.data.attendance.diff(resource.data.attendance).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.attendance[request.auth.uid] in ['yes','no'];
+      }
+      match /events/{eventId}/comments/{commentId} {
+        allow read: if isMember(spaceId);
+        allow create: if isMember(spaceId) && exists(/databases/$(database)/documents/spaces/$(spaceId)/events/$(eventId))
+          && authored(request.resource.data) && request.resource.data.keys().hasOnly(['profileId','createdAt','text']) && nonempty(request.resource.data.text, 2000);
+      }
+      match /tasks/{taskId} {
+        allow create: if isMember(spaceId) && authored(request.resource.data)
+          && request.resource.data.keys().hasOnly(['profileId','createdAt','title','description','done'])
+          && nonempty(request.resource.data.title, 150) && nonempty(request.resource.data.description, 3000) && request.resource.data.done == false;
+        allow update: if isMember(spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done']) && request.resource.data.done is bool;
+      }
       match /cycles/{cycleId}/expenses/{expenseId} { allow read: if isMember(spaceId); }
     }
     match /{document=**} { allow read, write: if false; }

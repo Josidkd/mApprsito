@@ -1,5 +1,8 @@
 import { doc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { createAuthController } from '../firebase/auth.js';
+import { createEvent, setAttendance, addComment } from '../firebase/events.js';
+import { createTask, toggleTask } from '../firebase/tasks.js';
+const actions = { 'event/add': createEvent, 'event/attendance': setAttendance, 'event/comment': addComment, 'task/add': createTask, 'task/toggle': toggleTask };
 const dataFields = () => ({ profiles: [], activeProfileId: null, events: [], tasks: [], recipes: [], menu: {}, expenses: [], settlements: [], currentCycle: null, historyHasMore: false });
 export function firebaseError(error) {
   if (error.code === 'permission-denied') return new Error('No tienes permiso para esta operación. Revisa tu autorización.');
@@ -88,7 +91,22 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
       if (type.startsWith('auth/')) return controller.dispatch(type, payload);
       if (state.authStatus !== 'ready' || !state.activeProfileId) throw new Error('Tu cuenta todavía no está autorizada.');
       if (!online() || !state.connected) throw new Error('Necesitas conexión para guardar cambios.');
-      throw new Error('Esta operación aún no está conectada.');
+      const action = actions[type]; if (!action) throw new Error('Operación no disponible.');
+      const epoch = generation, uid = state.activeProfileId;
+      state.pendingCount++; notify();
+      try { await action({ db, spaceId, uid }, payload, crypto.randomUUID()); }
+      catch (error) { if (epoch === generation && error.code === 'permission-denied') failure(error, epoch); throw firebaseError(error); }
+      finally { if (epoch === generation) { state.pendingCount = Math.max(0, state.pendingCount - 1); notify(); } }
+    },
+    watchComments(eventId) {
+      const epoch = generation;
+      if (state.authStatus !== 'ready') return () => {};
+      const unsubscribe = onSnapshot(collection(db, 'spaces', spaceId, 'events', eventId, 'comments'), snapshot => {
+        if (epoch !== generation || state.authStatus !== 'ready' || snapshot.metadata.fromCache) return;
+        const event = state.events.find(value => value.id === eventId);
+        if (event) { event.comments = snapshot.docs.map(mapDocument).sort((a, b) => a.createdAt.localeCompare(b.createdAt)); event.commentsLoaded = true; notify(); }
+      }, error => failure(error, epoch));
+      sessionUnsubs.push(unsubscribe); return unsubscribe;
     },
     destroy() { destroyed = true; generation++; controller.destroy(); sessionUnsubs.splice(0).forEach(fn => fn()); clearData(); listeners.clear(); }
   };
