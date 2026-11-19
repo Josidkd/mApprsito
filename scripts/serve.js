@@ -2,12 +2,13 @@ import { createServer } from 'node:http';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { networkInterfaces } from 'node:os';
-const root = await realpath(process.cwd());
+const dirIndex = process.argv.indexOf('--dir');
+const root = await realpath(resolve(dirIndex >= 0 ? process.argv[dirIndex + 1] : 'dist-demo'));
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const server = createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    if (!['/', '/index.html', '/favicon.svg'].includes(pathname) && !/^\/(src|assets)\//.test(pathname)) { res.writeHead(404).end('Not found'); return; }
+    if (!['/', '/index.html', '/favicon.svg'].includes(pathname) && !/^\/assets\//.test(pathname)) { res.writeHead(404).end('Not found'); return; }
     const file = await realpath(resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname)));
     if (!file.startsWith(root + sep)) { res.writeHead(403).end('Forbidden'); return; }
     const data = await readFile(file);

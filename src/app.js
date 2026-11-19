@@ -1,10 +1,13 @@
-import { createStore } from './data/store.js';
-import './components/demo-access.js';
-import './views/dashboard.js';
-import './views/calendar.js';
-import './views/tasks.js';
-import './views/recipes.js';
-import './views/accounts.js';
-import './components/app-shell.js';
-const storage = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
-document.querySelector('marsito-app').store = createStore(storage);
+import './styles.css';
+import './views/calendar-tasks.css';
+import './views/recipes.css';
+import './views/accounts.css';
+import { getRuntimeConfig } from './config/runtime.js';
+const config = getRuntimeConfig();
+document.querySelector('marsito-app').dataset.mode = config.mode;
+if (__MARSITO_MODE__ === 'demo') {
+  const { startDemo } = await import('./demo.js');
+  startDemo();
+} else {
+  document.querySelector('marsito-app').innerHTML = '<main class="access-panel"><div><h1>Marsito Beta</h1><p role="status">Conexión Firebase en preparación.</p></div></main>';
+}

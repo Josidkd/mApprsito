@@ -1,0 +1,6 @@
+{
+  "indexes": [
+    { "collectionGroup": "cycles", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "closedAt", "order": "DESCENDING" }] }
+  ],
+  "fieldOverrides": []
+}

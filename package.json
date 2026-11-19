@@ -1,18 +1,33 @@
 {
   "name": "marsito-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node scripts/serve.js",
-    "start:lan": "node scripts/serve.js --lan",
-    "test": "node --test tests/store.test.js tests/date.test.js tests/money.test.js tests/server.test.js",
-    "test:e2e": "playwright test"
+    "build": "node scripts/build.js firebase",
+    "build:demo": "node scripts/build.js demo",
+    "build:emulator": "node scripts/build.js emulator",
+    "start": "npm run build:demo && node scripts/serve.js",
+    "start:lan": "npm run build:demo && node scripts/serve.js --lan",
+    "pretest": "npm run build:demo",
+    "test": "node --test tests/store.test.js tests/date.test.js tests/money.test.js tests/server.test.js tests/build.test.js",
+    "test:e2e": "playwright test",
+    "test:firebase": "node scripts/test-firebase.js",
+    "test:e2e:firebase": "node scripts/test-firebase.js e2e"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.1"
+    "@firebase/rules-unit-testing": "5.0.1",
+    "@playwright/test": "^1.65.1",
+    "esbuild": "0.28.2",
+    "firebase-tools": "15.37.0"
+  },
+  "dependencies": {
+    "firebase": "12.19.0"
+  },
+  "overrides": {
+    "@firebase/firestore": { "@grpc/grpc-js": "1.14.7" }
   }
 }

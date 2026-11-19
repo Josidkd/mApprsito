@@ -2,3 +2,10 @@ node_modules/
 test-results/
 playwright-report/
 *.log
+dist/
+dist-demo/
+dist-emulator/
+.firebase/
+*-debug.log
+.env*
+
