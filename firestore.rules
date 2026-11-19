@@ -1,6 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function spacePath(spaceId) { return /databases/$(database)/documents/spaces/$(spaceId); }
+    function isMember(spaceId) {
+      return signedIn() && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/betaMembers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/betaMembers/$(request.auth.uid)).data.enabled == true
+        && get(/databases/$(database)/documents/betaMembers/$(request.auth.uid)).data.spaceId == spaceId
+        && exists(spacePath(spaceId))
+        && get(spacePath(spaceId)).data.profiles.size() == 2
+        && request.auth.uid in [get(spacePath(spaceId)).data.profiles[0].id, get(spacePath(spaceId)).data.profiles[1].id];
+    }
+    match /betaMembers/{uid} { allow get: if signedIn() && request.auth.uid == uid; }
+    match /spaces/{spaceId} {
+      allow get: if isMember(spaceId);
+      match /{kind}/{id} {
+        allow read: if kind in ['events', 'tasks', 'recipes', 'menu', 'cycles'] && isMember(spaceId);
+      }
+      match /events/{eventId}/comments/{commentId} { allow read: if isMember(spaceId); }
+      match /cycles/{cycleId}/expenses/{expenseId} { allow read: if isMember(spaceId); }
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }
