@@ -1,0 +1,17 @@
+{
+  "name": "marsito-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test tests/store.test.js tests/date.test.js tests/money.test.js",
+    "test:e2e": "playwright test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}
