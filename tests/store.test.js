@@ -69,6 +69,16 @@ test('settlement archives the current cycle and begins an empty one', () => {
   assert.deepEqual(cycle.balance.transfer, { from: 'sam', to: 'alex', cents: 1000 });
   store.dispatch('reset'); assert.equal(store.getState().settlements.length, 0);
 });
+test('a truncated settlement is rejected instead of breaking account rendering', () => {
+  const { store } = setup();
+  store.dispatch('expense/settle');
+  const saved = store.getState();
+  saved.settlements[0].profiles = [null, null];
+  saved.settlements[0].balance.transfer = { from: 'alex', to: 'sam', cents: 'oops' };
+  const restored = createStore({ getItem: () => JSON.stringify(saved), setItem() {} }).getState();
+  assert.equal(restored.settlements.length, 0);
+  assert.match(restored.storageWarning, /datos|guardad/i);
+});
 test('corrupt storage and write failures produce visible warnings without losing session work', () => {
   const corrupt = createStore({ getItem: () => '{bad', setItem() {} });
   assert.match(corrupt.getState().storageWarning, /datos|guardad/i);

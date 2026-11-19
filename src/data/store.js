@@ -10,9 +10,20 @@ function optionalURL(value) {
   throw new Error('Usa una URL completa que empiece por https:// o http://.');
 }
 const id = () => globalThis.crypto.randomUUID();
+function validProfiles(profiles) {
+  return Array.isArray(profiles) && profiles.length === 2
+    && profiles.every(p => p && typeof p.id === 'string' && p.id.trim() && typeof p.name === 'string' && p.name.trim())
+    && new Set(profiles.map(p => p.id)).size === 2;
+}
+function validBalance(balance, expenses, profiles) {
+  if (!balance || !balance.shares) return false;
+  const expected = getBalance(expenses, profiles);
+  if (balance.total !== expected.total || !profiles.every(p => balance.shares[p.id] === expected.shares[p.id])) return false;
+  if (!expected.transfer) return balance.transfer === null;
+  return balance.transfer?.from === expected.transfer.from && balance.transfer?.to === expected.transfer.to && balance.transfer?.cents === expected.transfer.cents;
+}
 function validState(s) {
-  if (!s || s.version !== 1 || !Array.isArray(s.profiles) || s.profiles.length !== 2) return false;
-  if (!s.profiles.every(p => p && typeof p.id === 'string' && typeof p.name === 'string') || new Set(s.profiles.map(p => p.id)).size !== 2) return false;
+  if (!s || s.version !== 1 || !validProfiles(s.profiles)) return false;
   const profile = value => s.profiles.some(p => p.id === value);
   if (s.activeProfileId !== null && !profile(s.activeProfileId)) return false;
   if (!['events', 'tasks', 'recipes', 'expenses', 'settlements'].every(key => Array.isArray(s[key]))) return false;
@@ -23,7 +34,7 @@ function validState(s) {
     && s.tasks.every(x => base(x) && typeof x.title === 'string' && typeof x.description === 'string' && typeof x.done === 'boolean')
     && s.recipes.every(x => base(x) && typeof x.title === 'string' && Array.isArray(x.ingredients) && x.ingredients.every(i => typeof i === 'string') && typeof x.instructions === 'string')
     && s.expenses.every(expense)
-    && s.settlements.every(x => x && typeof x.id === 'string' && typeof x.createdAt === 'string' && Array.isArray(x.expenses) && x.expenses.every(expense) && x.balance && Number.isSafeInteger(x.balance.total) && x.profiles?.length === 2)
+    && s.settlements.every(x => x && typeof x.id === 'string' && typeof x.createdAt === 'string' && Number.isFinite(Date.parse(x.createdAt)) && Array.isArray(x.expenses) && x.expenses.every(expense) && validProfiles(x.profiles) && x.profiles.every(p => profile(p.id)) && validBalance(x.balance, x.expenses, x.profiles))
     && Object.entries(s.menu).every(([key, slots]) => validDate(key) && slots && typeof slots === 'object' && Object.entries(slots).every(([slot, recipeId]) => ['lunch', 'dinner'].includes(slot) && (recipeId === '' || s.recipes.some(r => r.id === recipeId))));
 }
 export function createStore(storage) {

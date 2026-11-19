@@ -31,10 +31,16 @@ export function showDialog({ title, body, onSubmit, submit = 'Guardar', wide = f
   document.querySelector('dialog')?.close();
   const opener = document.activeElement;
   const dialog = document.createElement('dialog'); dialog.className = wide ? 'wide-dialog' : '';
-  dialog.innerHTML = `<form><header class="dialog-head"><h2>${escapeHTML(title)}</h2><button type="button" class="icon-button" data-close aria-label="Cerrar">×</button></header><div class="dialog-content">${body}</div><p class="form-error" role="alert" hidden></p>${onSubmit ? `<footer class="dialog-actions"><button class="button secondary" type="button" data-close>Cancelar</button><button class="button primary" type="submit">${escapeHTML(submit)}</button></footer>` : ''}</form>`;
+  dialog.setAttribute('aria-labelledby', 'dialog-title');
+  dialog.innerHTML = `<form><header class="dialog-head"><h2 id="dialog-title">${escapeHTML(title)}</h2><button type="button" class="icon-button" data-close aria-label="Cerrar">×</button></header><div class="dialog-content">${body}</div><p class="form-error" role="alert" hidden></p>${onSubmit ? `<footer class="dialog-actions"><button class="button secondary" type="button" data-close>Cancelar</button><button class="button primary" type="submit">${escapeHTML(submit)}</button></footer>` : ''}</form>`;
   dialog.querySelectorAll('[data-close]').forEach(button => button.onclick = () => dialog.close());
   dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
-  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); }, { once: true });
+  dialog.addEventListener('close', () => {
+    dialog.remove();
+    const target = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
+    if (target && !target.disabled) target.focus();
+    else document.querySelector('main h1')?.focus();
+  }, { once: true });
   dialog.querySelector('form').onsubmit = event => {
     event.preventDefault(); if (!onSubmit) return;
     try { onSubmit(formValues(event.target), dialog); dialog.close(); }

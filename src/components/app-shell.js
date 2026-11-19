@@ -9,6 +9,8 @@ export class AppShell extends HTMLElement {
       if (this.mode !== 'access') { this.mode = 'access'; this.innerHTML = '<demo-access></demo-access>'; }
       this.querySelector('demo-access').store = this._store; return;
     }
+    const entering = this.mode === 'access';
+    if (entering) history.replaceState(null, '', '#inicio');
     const route = routes.some(([r]) => r === location.hash.slice(1)) ? location.hash.slice(1) : 'inicio';
     if (this.mode !== 'app') {
       this.mode = 'app'; this.route = null;
@@ -29,7 +31,7 @@ export class AppShell extends HTMLElement {
       const view = document.createElement(tag); this.querySelector('#main-content').replaceChildren(view);
       if (customElements.get(tag)) view.store = this._store;
       else view.innerHTML = '<h1>Esta sección estará lista enseguida.</h1>';
-      if (routeChanged) { view.querySelector('h1')?.focus(); window.scrollTo(0, 0); }
+      if (routeChanged || entering) { view.querySelector('h1')?.focus(); window.scrollTo(0, 0); }
     }
   }
 }
