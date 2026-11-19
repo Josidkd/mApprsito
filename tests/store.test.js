@@ -14,6 +14,19 @@ test('local changes survive reload, notify subscribers and share profiles', () =
   const snapshot = store.getState(); snapshot.tasks.length = 0;
   assert.ok(store.getState().tasks.length > 0);
 });
+test('creating data works on HTTP LAN where randomUUID is unavailable', () => {
+  const { store } = setup();
+  const original = globalThis.crypto.randomUUID;
+  globalThis.crypto.randomUUID = undefined;
+  try {
+    store.dispatch('task/add', { title: 'Desde Android', description: 'HTTP en la red local' });
+    store.dispatch('task/add', { title: 'Otra tarea', description: 'ID independiente' });
+    const tasks = store.getState().tasks.slice(-2);
+    assert.equal(tasks[0].title, 'Desde Android');
+    assert.match(tasks[0].id, /^[0-9a-f-]{36}$/);
+    assert.notEqual(tasks[0].id, tasks[1].id);
+  } finally { globalThis.crypto.randomUUID = original; }
+});
 test('registration renames a demo profile without adding a third or storing a password', () => {
   const { store } = setup();
   store.dispatch('register', { profileId: 'alex', name: 'Mar', password: 'not-stored' });

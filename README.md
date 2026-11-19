@@ -18,6 +18,18 @@ Abre **http://127.0.0.1:4173**. No hace falta compilar. No abras `index.html` di
 3. Recorre **Inicio, Calendario, Tareas, Recetas y Cuentas**.
 4. «Restablecer demo», al pie de cada pantalla, recupera los ejemplos previa confirmación.
 
+## Abrir en un móvil Android por Wi-Fi
+
+Conecta el PC y el móvil a la misma red de confianza. Detén el servidor local anterior y ejecuta:
+
+```sh
+npm run start:lan
+```
+
+Abre en Chrome del móvil la dirección «Red local» que imprime la consola, por ejemplo `http://192.168.0.18:4173`. Mantén el PC encendido y el servidor activo. Si Windows pide permiso, permite solo redes privadas; no desactives el firewall. Algunas redes de invitados impiden conexiones entre dispositivos.
+
+El modo LAN expone solo los archivos públicos de la maqueta, pero no tiene autenticación real ni HTTPS: úsalo únicamente con datos ficticios, sin abrir puertos en el router. Los datos del móvil son independientes de los del PC. Para dejar de compartir, detén el servidor y vuelve a `npm start`, que escucha solo en el PC.
+
 ## Qué puedes hacer
 
 - **Calendario:** crear eventos con título, fecha, hora y descripción; imagen/enlace opcionales; asistencia sí/no y comentarios por perfil.
@@ -57,6 +69,6 @@ Es una **demostración**, no una aplicación de producción. No introduzcas info
 - Borrar los datos del navegador elimina la maqueta guardada. Si el navegador bloquea el almacenamiento, se avisa y los cambios duran solo la sesión.
 - Firebase Auth, Firestore, reglas de seguridad, notificaciones y APK Android quedan para la siguiente fase.
 - Las imágenes opcionales se cargan desde las URLs que introduzcas; requieren conexión y contactan con ese servidor externo. La maqueta no sube archivos.
-- El servidor escucha solo en `127.0.0.1` y no está pensado para publicar en producción.
+- `npm start` escucha solo en `127.0.0.1`; `npm run start:lan` habilita interfaces IPv4 para pruebas desde la red local. Ninguno está pensado para publicar en producción.
 
 Los Web Components y los módulos ES son compatibles con un futuro empaquetado en un WebView Android moderno, pero todavía no se ha generado ni probado un APK.

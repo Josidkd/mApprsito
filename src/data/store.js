@@ -9,7 +9,15 @@ function optionalURL(value) {
   try { const url = new URL(text); if (['http:', 'https:'].includes(url.protocol)) return url.href; } catch { /* invalid URL */ }
   throw new Error('Usa una URL completa que empiece por https:// o http://.');
 }
-const id = () => globalThis.crypto.randomUUID();
+function id() {
+  if (globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
+  // HTTP over a private LAN is not a secure context; getRandomValues still works.
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 function validProfiles(profiles) {
   return Array.isArray(profiles) && profiles.length === 2
     && profiles.every(p => p && typeof p.id === 'string' && p.id.trim() && typeof p.name === 'string' && p.name.trim())

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node scripts/serve.js",
-    "test": "node --test tests/store.test.js tests/date.test.js tests/money.test.js",
+    "start:lan": "node scripts/serve.js --lan",
+    "test": "node --test tests/store.test.js tests/date.test.js tests/money.test.js tests/server.test.js",
     "test:e2e": "playwright test"
   },
   "engines": {
