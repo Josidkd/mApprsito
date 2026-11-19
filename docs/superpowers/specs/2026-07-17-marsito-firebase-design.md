@@ -1,6 +1,6 @@
 # Marsito App beta_0.2 — Firebase y beta por invitación
 
-Estado: propuesta pendiente de aprobación. Rama local `beta_0.2`, creada desde `beta_0.1` en el commit `c508458`, incluyendo el modo de vista previa por Wi-Fi.
+Estado: diseño aprobado por el usuario. Rama local `beta_0.2`, creada desde `beta_0.1` en el commit `c508458`, incluyendo el modo de vista previa por Wi-Fi.
 
 ## Objetivo
 Convertir la maqueta local en una beta web compartida por dos personas, con identidades reales, datos sincronizados entre móvil y PC y despliegue HTTPS. Mantener HTML5, CSS, JavaScript vanilla y Web Components; conservar las cuatro secciones y su diseño.
