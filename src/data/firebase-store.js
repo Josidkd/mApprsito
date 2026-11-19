@@ -2,7 +2,8 @@ import { doc, collection, onSnapshot, getDocFromServer } from 'firebase/firestor
 import { createAuthController } from '../firebase/auth.js';
 import { createEvent, setAttendance, addComment } from '../firebase/events.js';
 import { createTask, toggleTask } from '../firebase/tasks.js';
-const actions = { 'event/add': createEvent, 'event/attendance': setAttendance, 'event/comment': addComment, 'task/add': createTask, 'task/toggle': toggleTask };
+import { createRecipe, setMenu } from '../firebase/recipes.js';
+const actions = { 'recipe/add': createRecipe, 'menu/set': setMenu, 'event/add': createEvent, 'event/attendance': setAttendance, 'event/comment': addComment, 'task/add': createTask, 'task/toggle': toggleTask };
 const dataFields = () => ({ profiles: [], activeProfileId: null, events: [], tasks: [], recipes: [], menu: {}, expenses: [], settlements: [], currentCycle: null, historyHasMore: false });
 export function firebaseError(error) {
   if (error.code === 'permission-denied') return new Error('No tienes permiso para esta operación. Revisa tu autorización.');
@@ -32,6 +33,7 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
       if (epoch !== generation || destroyed || snapshot.metadata.fromCache) return;
       const values = snapshot.docs.map(mapDocument);
       if (kind === 'menu') state.menu = Object.fromEntries(values.map(({ id, ...value }) => [id, value]));
+      else if (kind === 'recipes') state.recipes = values.map(value => ({ ...value, ingredients: value.ingredientsText.split('\n'), emoji: '🍽️' }));
       else if (kind === 'events') state.events = values.map(value => ({ ...value, comments: state.events.find(e => e.id === value.id)?.comments || [] }));
       else state[kind] = values;
       state.connected = true; notify();

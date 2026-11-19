@@ -45,6 +45,21 @@ service cloud.firestore {
           && nonempty(request.resource.data.title, 150) && nonempty(request.resource.data.description, 3000) && request.resource.data.done == false;
         allow update: if isMember(spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done']) && request.resource.data.done is bool;
       }
+      match /recipes/{recipeId} {
+        allow create: if isMember(spaceId) && authored(request.resource.data)
+          && request.resource.data.keys().hasOnly(['profileId','createdAt','title','ingredientsText','instructions','image','info'])
+          && nonempty(request.resource.data.title, 120) && nonempty(request.resource.data.instructions, 8000)
+          && request.resource.data.ingredientsText is string && request.resource.data.ingredientsText.size() <= 20100
+          && request.resource.data.ingredientsText.matches('[^\\r\\n]{1,200}(\\n[^\\r\\n]{1,200}){0,99}')
+          && request.resource.data.ingredientsText.matches('[^\\r\\n]*[^ \\t\\r\\n][^\\r\\n]*(\\n[^\\r\\n]*[^ \\t\\r\\n][^\\r\\n]*){0,99}')
+          && validURL(request.resource.data.image) && validURL(request.resource.data.info);
+      }
+      function recipeExists(recipeId) { return recipeId is string && (recipeId == '' || exists(/databases/$(database)/documents/spaces/$(spaceId)/recipes/$(recipeId))); }
+      match /menu/{date} {
+        allow create, update: if isMember(spaceId) && validDate(date)
+          && request.resource.data.keys().hasOnly(['lunch','dinner']) && request.resource.data.keys().hasAll(['lunch','dinner'])
+          && recipeExists(request.resource.data.lunch) && recipeExists(request.resource.data.dinner);
+      }
       match /cycles/{cycleId}/expenses/{expenseId} { allow read: if isMember(spaceId); }
     }
     match /{document=**} { allow read, write: if false; }
