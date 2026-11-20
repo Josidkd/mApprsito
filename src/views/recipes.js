@@ -1,4 +1,4 @@
-import { StoreView, escapeHTML as esc, icon, pageHeading, showDialog, field, emptyState, safeURL, toast } from '../lib/dom.js';
+import { StoreView, escapeHTML as esc, icon, pageHeading, showDialog, field, emptyState, safeURL, saveAction, runAction, toast } from '../lib/dom.js';
 import { dateKey, weekDays, shiftDay, prettyDate } from '../lib/date.js';
 class Recipes extends StoreView {
   tab = 'recipes';
@@ -17,10 +17,10 @@ class Recipes extends StoreView {
       this.querySelector('#prev-week').onclick = () => change(-7);
       this.querySelector('#next-week').onclick = () => change(7);
       this.querySelector('#this-week').onclick = () => { this.week = dateKey(); this.render(); this.querySelector('#this-week').focus(); };
-      this.querySelectorAll('[data-slot]').forEach(select => select.onchange = () => {
+      this.querySelectorAll('[data-slot]').forEach(select => select.onchange = async () => {
         const { date, slot } = select.dataset;
-        this.store.dispatch('menu/set', { date, slot, recipeId: select.value });
-        this.querySelector(`[data-date="${date}"][data-slot="${slot}"]`).focus(); toast('Menú actualizado');
+        const saved = await runAction(select, this.store, 'menu/set', { date, slot, recipeId: select.value });
+        if (this.isConnected) { this.render(); this.querySelector(`[data-date="${date}"][data-slot="${slot}"]`)?.focus(); if (saved) toast('Menú actualizado'); }
       });
     }
   }
@@ -32,7 +32,7 @@ class Recipes extends StoreView {
     return `<section class="panel menu-panel"><div class="panel-title week-title"><div><p class="eyebrow">UN POCO DE INSPIRACIÓN</p><h2>${prettyDate(days[0], { day: 'numeric', month: 'short' })} — ${prettyDate(days[6], { day: 'numeric', month: 'short', year: 'numeric' })}</h2></div><div class="calendar-controls"><button class="icon-button" id="prev-week" aria-label="Semana anterior">‹</button><button class="text-button" id="this-week">Esta semana</button><button class="icon-button" id="next-week" aria-label="Semana siguiente">›</button></div></div>${!s.recipes.length ? '<p class="muted menu-empty-hint">Crea una receta para empezar a planificar.</p>' : ''}<div class="menu-days">${days.map(date => `<article class="menu-day ${date === dateKey() ? 'is-today' : ''}"><header><span>${prettyDate(date, { weekday: 'long' })}</span><strong>${prettyDate(date, { day: 'numeric', month: 'short' })}</strong>${date === dateKey() ? '<small>HOY</small>' : ''}</header>${[['lunch', 'Comida', '☀'], ['dinner', 'Cena', '☾']].map(([slot, label, emoji]) => `<label class="meal-slot"><span>${emoji} ${label}</span><select data-date="${date}" data-slot="${slot}" aria-label="${label} del ${date}" ${s.recipes.length ? '' : 'disabled'}><option value="">Sin planificar</option>${s.recipes.map(r => `<option value="${esc(r.id)}" ${s.menu[date]?.[slot] === r.id ? 'selected' : ''}>${esc(r.title)}</option>`).join('')}</select></label>`).join('')}</article>`).join('')}</div><p class="menu-tip">${icon('leaf')} Elige una receta en cada turno. Selecciona «Sin planificar» para dejarlo libre.</p></section>`;
   }
   createRecipe() {
-    showDialog({ title: 'Una nueva favorita', submit: 'Guardar receta', body: `${field('Título', 'title', 'text', 'required maxlength="120" placeholder="El nombre de algo rico"')}${field('Ingredientes (uno por línea)', 'ingredients', 'textarea', 'required placeholder="200 g de pasta&#10;2 tomates&#10;Una pizca de sal"')}${field('Instrucciones', 'instructions', 'textarea', 'required maxlength="8000" placeholder="Paso a paso, sin prisas…"')}${field('URL de imagen (opcional)', 'image', 'text', 'inputmode="url" placeholder="https://…"')}${field('URL de información (opcional)', 'info', 'text', 'inputmode="url" placeholder="https://…"')}`, onSubmit: data => { this.tab = 'recipes'; this.store.dispatch('recipe/add', { ...data, ingredients: data.ingredients.split('\n') }); toast('Una receta más para compartir'); } });
+    showDialog({ title: 'Una nueva favorita', submit: 'Guardar receta', body: `${field('Título', 'title', 'text', 'required maxlength="120" placeholder="El nombre de algo rico"')}${field('Ingredientes (uno por línea)', 'ingredients', 'textarea', 'required placeholder="200 g de pasta&#10;2 tomates&#10;Una pizca de sal"')}${field('Instrucciones', 'instructions', 'textarea', 'required maxlength="8000" placeholder="Paso a paso, sin prisas…"')}${field('URL de imagen (opcional)', 'image', 'text', 'inputmode="url" placeholder="https://…"')}${field('URL de información (opcional)', 'info', 'text', 'inputmode="url" placeholder="https://…"')}`, onSubmit: async data => { this.tab = 'recipes'; await saveAction(this.store, 'recipe/add', { ...data, ingredients: data.ingredients.split('\n') }, 'Una receta más para compartir'); } });
   }
   openRecipe(id) {
     const r = this.store.getState().recipes.find(item => item.id === id);

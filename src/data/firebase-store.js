@@ -38,7 +38,7 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
       const values = snapshot.docs.map(mapDocument);
       if (kind === 'menu') state.menu = Object.fromEntries(values.map(({ id, ...value }) => [id, value]));
       else if (kind === 'recipes') state.recipes = values.map(value => ({ ...value, ingredients: value.ingredientsText.split('\n'), emoji: '🍽️' }));
-      else if (kind === 'events') state.events = values.map(value => ({ ...value, comments: state.events.find(e => e.id === value.id)?.comments || [] }));
+      else if (kind === 'events') state.events = values.map(value => { const previous = state.events.find(e => e.id === value.id); return { ...value, comments: previous?.comments || [], commentsLoaded: previous?.commentsLoaded || false }; });
       else state[kind] = values;
       state.connected = true; notify();
     }, error => failure(error, epoch)));

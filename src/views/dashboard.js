@@ -1,13 +1,13 @@
 import { StoreView, escapeHTML as esc, icon, pageHeading } from '../lib/dom.js';
 import { dateKey, prettyDate } from '../lib/date.js';
-import { euro, getBalance } from '../lib/money.js';
+import { euro, getBalance, getBalanceFromPaid } from '../lib/money.js';
 class Dashboard extends StoreView {
   render() {
     const s = this.store.getState(), today = dateKey();
     const profile = s.profiles.find(p => p.id === s.activeProfileId);
     const pending = s.tasks.filter(t => !t.done);
     const upcoming = [...s.events].filter(e => e.date >= today).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
-    const balance = getBalance(s.expenses, s.profiles);
+    const balance = s.mode === 'firebase' ? getBalanceFromPaid(s.currentCycle || { paidA: 0, paidB: 0 }, s.profiles) : getBalance(s.expenses, s.profiles);
     const lunch = s.recipes.find(r => r.id === s.menu[today]?.lunch);
     const day = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     this.innerHTML = `${pageHeading(esc(day).toUpperCase(), `Hola, ${esc(profile.name)}`, 'Qué bien tenerte por aquí. ¿Organizamos el día?', '<span class="pill soft">'+icon('heart')+' Nuestro pequeño equipo</span>')}
@@ -17,7 +17,7 @@ class Dashboard extends StoreView {
       <a class="feature-card" href="#calendario"><div class="feature-top"><span class="feature-icon peach">${icon('calendar')}</span>${icon('arrow')}</div><h3>Nuestros planes</h3><p>Para no perdernos nada de lo bueno.</p><div class="feature-preview">${upcoming ? `<span class="tiny-date">${prettyDate(upcoming.date, { day: 'numeric' })}<small>${prettyDate(upcoming.date, { month: 'short' })}</small></span><span><strong>${esc(upcoming.title)}</strong><small>${esc(upcoming.time)} h · Próximo plan</small></span>` : '<span class="muted">El próximo plan está por inventar.</span>'}</div><span class="card-link">Abrir calendario ${icon('chevron')}</span></a>
       <a class="feature-card" href="#tareas"><div class="feature-top"><span class="feature-icon green">${icon('tasks')}</span>${icon('arrow')}</div><h3>Entre los dos</h3><p>Los pendientes pesan menos en equipo.</p><div class="task-preview">${pending.slice(0, 2).map(t => `<div><span class="fake-checkbox"></span>${esc(t.title)}</div>`).join('') || '¡Todo al día! A disfrutar.'}</div><span class="card-link">Ver tareas ${icon('chevron')}</span></a>
       <a class="feature-card" href="#recetas"><div class="feature-top"><span class="feature-icon yellow">${icon('recipes')}</span>${icon('arrow')}</div><h3>¿Qué comemos?</h3><p>Ideas ricas para toda la semana.</p><div class="feature-preview"><span class="food-emoji">${esc(lunch?.emoji || '🍽️')}</span><span><strong>${esc(lunch?.title || 'Un menú por descubrir')}</strong><small>Hoy · Comida</small></span></div><span class="card-link">Recetas y menú ${icon('chevron')}</span></a>
-      <a class="feature-card" href="#cuentas"><div class="feature-top"><span class="feature-icon lavender">${icon('wallet')}</span>${icon('arrow')}</div><h3>Cuentas claras</h3><p>Compartir gastos, sin darle más vueltas.</p><div class="feature-preview"><div class="overlap-avatars">${s.profiles.map((p, i) => `<span class="avatar ${i ? 'sage' : 'coral'}">${esc(p.name[0])}</span>`).join('')}</div><span><strong>A medias, como siempre</strong><small>${s.expenses.length} gastos en el ciclo actual</small></span></div><span class="card-link">Ver cuentas ${icon('chevron')}</span></a></section><footer class="dashboard-footer">${icon('leaf')} Las pequeñas cosas también hacen hogar.</footer>`;
+      <a class="feature-card" href="#cuentas"><div class="feature-top"><span class="feature-icon lavender">${icon('wallet')}</span>${icon('arrow')}</div><h3>Cuentas claras</h3><p>Compartir gastos, sin darle más vueltas.</p><div class="feature-preview"><div class="overlap-avatars">${s.profiles.map((p, i) => `<span class="avatar ${i ? 'sage' : 'coral'}">${esc(p.name[0])}</span>`).join('')}</div><span><strong>A medias, como siempre</strong><small>${s.mode === 'firebase' ? s.currentCycle?.count || 0 : s.expenses.length} gastos en el ciclo actual</small></span></div><span class="card-link">Ver cuentas ${icon('chevron')}</span></a></section><footer class="dashboard-footer">${icon('leaf')} Las pequeñas cosas también hacen hogar.</footer>`;
   }
 }
 customElements.define('app-dashboard', Dashboard);

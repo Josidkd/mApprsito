@@ -13,7 +13,10 @@ if (process.platform === 'win32' && !env.JAVA_HOME) {
 const e2e = process.argv[2] === 'e2e';
 const names = process.argv.slice(e2e ? 3 : 2);
 let command;
-if (e2e) command = 'node node_modules/@playwright/test/cli.js test --config playwright.firebase.config.js --workers=1';
+if (e2e) {
+  if (names.some(value => !/^[\w/.=:-]+$/.test(value))) throw new Error('Argumentos de test no válidos.');
+  command = 'node node_modules/@playwright/test/cli.js test --config playwright.firebase.config.js --workers=1 ' + names.join(' ');
+}
 else {
   const files = (await readdir('tests/firebase')).filter(file => file.endsWith('.test.js') && (!names.length || names.some(name => file.includes(name))));
   if (!files.length) throw new Error('No hay pruebas Firebase que coincidan.');

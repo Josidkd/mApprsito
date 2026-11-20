@@ -34,17 +34,22 @@ export function showDialog({ title, body, onSubmit, submit = 'Guardar', wide = f
   dialog.setAttribute('aria-labelledby', 'dialog-title');
   dialog.innerHTML = `<form><header class="dialog-head"><h2 id="dialog-title">${escapeHTML(title)}</h2><button type="button" class="icon-button" data-close aria-label="Cerrar">×</button></header><div class="dialog-content">${body}</div><p class="form-error" role="alert" hidden></p>${onSubmit ? `<footer class="dialog-actions"><button class="button secondary" type="button" data-close>Cancelar</button><button class="button primary" type="submit">${escapeHTML(submit)}</button></footer>` : ''}</form>`;
   dialog.querySelectorAll('[data-close]').forEach(button => button.onclick = () => dialog.close());
-  dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
+  dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (dialog.getAttribute('aria-busy') !== 'true' && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)) dialog.close(); } });
   dialog.addEventListener('close', () => {
     dialog.remove();
     const target = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
     if (target && !target.disabled) target.focus();
     else document.querySelector('main h1')?.focus();
   }, { once: true });
-  dialog.querySelector('form').onsubmit = event => {
-    event.preventDefault(); if (!onSubmit) return;
-    try { onSubmit(formValues(event.target), dialog); dialog.close(); }
-    catch (error) { const node = dialog.querySelector('.form-error'); node.textContent = error.message; node.hidden = false; }
+  let busy = false;
+  dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+  dialog.querySelector('form').onsubmit = async event => {
+    event.preventDefault(); if (!onSubmit || busy) return;
+    const values = formValues(event.target); busy = true; dialog.setAttribute('aria-busy', 'true');
+    const controls = [...dialog.querySelectorAll('button, input, textarea, select')]; controls.forEach(node => node.disabled = true);
+    try { await Promise.resolve(onSubmit(values, dialog)); if (dialog.isConnected) dialog.close(); }
+    catch (error) { if (dialog.isConnected) { const node = dialog.querySelector('.form-error'); node.textContent = error.message; node.hidden = false; } }
+    finally { busy = false; dialog.removeAttribute('aria-busy'); controls.forEach(node => node.disabled = false); }
   };
   document.body.append(dialog); dialog.showModal(); return dialog;
 }
@@ -53,8 +58,27 @@ export function toast(message) {
   let node = document.querySelector('#toast'); if (!node) { node = document.createElement('div'); node.id = 'toast'; node.role = 'status'; document.body.append(node); }
   node.textContent = message; node.classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => node.classList.remove('visible'), 2800);
 }
+export function showError(error) {
+  const dialogError = document.querySelector('dialog[open] .form-error');
+  if (dialogError) { dialogError.textContent = error.message; dialogError.hidden = false; return; }
+  let node = document.querySelector('#action-error');
+  if (!node) { node = document.createElement('p'); node.id = 'action-error'; node.className = 'storage-warning'; node.role = 'alert'; document.querySelector('#main-content')?.prepend(node); }
+  node.textContent = error.message || 'No se pudo completar la operación.';
+}
+export async function saveAction(store, type, payload, message) {
+  await Promise.resolve(store.dispatch(type, payload));
+  if (message) toast(message);
+}
+export async function runAction(button, store, type, payload) {
+  const uid = store.getState().activeProfileId;
+  if (button?.disabled) return false;
+  if (button) button.disabled = true;
+  try { await Promise.resolve(store.dispatch(type, payload)); return true; }
+  catch (error) { if (store.getState().activeProfileId === uid) showError(error); return false; }
+  finally { if (button?.isConnected) button.disabled = false; }
+}
 export class StoreView extends HTMLElement {
-  set store(value) { this.unsubscribe?.(); this._store = value; this.unsubscribe = value.subscribe(() => this.render()); this.render(); }
+  set store(value) { this.unsubscribe?.(); this._store = value; this.unsubscribe = value.subscribe(() => { this.render(); if (value.getState().pendingCount) this.querySelectorAll('input[type="checkbox"], select[data-slot]').forEach(node => node.disabled = true); }); this.render(); }
   get store() { return this._store; }
   disconnectedCallback() { this.unsubscribe?.(); }
 }
