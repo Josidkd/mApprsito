@@ -1,74 +1,87 @@
-# Marsito App · maqueta local
+# Marsito App · beta_0.2
 
-Maqueta funcional en **HTML5, CSS, JavaScript vanilla y Web Components**, sin framework ni dependencias de producción. Diseño móvil y escritorio, datos ficticios y guardado en `localStorage`.
+Aplicación compartida para dos personas en **HTML5, CSS, JavaScript vanilla y Web Components**. Incluye calendario, tareas, recetas/menú semanal y cuentas con liquidaciones. La rama `beta_0.1` conserva la maqueta; `beta_0.2` añade Firebase Auth, Firestore y configuración de Hosting.
 
-## Probarla
+## Tres modos separados
 
-Requiere Node.js 20 o posterior.
+| Modo | Comando | Datos |
+|---|---|---|
+| Demo local | `npm start` | Perfiles ficticios y localStorage, sin Firebase |
+| Demo por Wi-Fi | `npm run start:lan` | Misma demo; accesible desde la red local de confianza |
+| Firebase real | `npm run start:beta` | Proyecto `marsito-beta`; cuentas y datos reales |
+| Pruebas Firebase | `npm run test:e2e:firebase` | Emuladores locales, proyecto ficticio `demo-marsito-beta` |
+
+Los modos se fijan al compilar. Cambiar parámetros de la URL no convierte la beta en demo ni conecta producción a emuladores. Un fallo de Firebase no abre un acceso demo.
+
+## Instalar y abrir la maqueta
+
+Requiere Node.js 20+; para las pruebas con emuladores, Java 21.
 
 ```sh
 npm install
 npm start
 ```
 
-Abre **http://127.0.0.1:4173**. No hace falta compilar. No abras `index.html` directamente con `file://`: los módulos necesitan HTTP.
+Abre **http://127.0.0.1:4173**. Elige Álex o Sam. El pie «Restablecer demo» recupera ejemplos previa confirmación. No abrir `index.html` por `file://`.
 
-1. Entra como **Álex** o **Sam**, o personaliza uno de los dos perfiles con «Crear perfil demo».
-2. Cambia el perfil desde la barra superior para probar las acciones compartidas.
-3. Recorre **Inicio, Calendario, Tareas, Recetas y Cuentas**.
-4. «Restablecer demo», al pie de cada pantalla, recupera los ejemplos previa confirmación.
+Para Android en la misma Wi-Fi, usa `npm run start:lan` y la dirección «Red local» impresa en consola. Mantén el PC encendido. Usa una red de confianza; no desactives el firewall ni abras puertos del router. Los datos de la demo del móvil y del PC son independientes.
 
-## Abrir en un móvil Android por Wi-Fi
+## Beta Firebase privada
 
-Conecta el PC y el móvil a la misma red de confianza. Detén el servidor local anterior y ejecuta:
+**Guía completa: [Preparar y publicar la beta](docs/firebase-beta-setup.md).**
+
+- Login/registro por correo y contraseña, verificación y recuperación.
+- Registrarse no autoriza: el propietario aprueba los dos UIDs mediante documentos protegidos.
+- La identidad viene de Auth: no hay selector libre de perfiles ni restablecimiento de datos reales.
+- La interfaz/login se puede descargar públicamente; los datos requieren membresía activa, correo verificado y UID en los dos perfiles del espacio. Las reglas, no solo la interfaz, hacen cumplir esto.
+- Datos sincronizados entre dispositivos. Escrituras confirmadas por el servidor, sin cola offline.
+- Transacciones para gastos y cierres; ciclos cerrados y gastos archivados inmutables para clientes.
+- Sin migración automática de los ejemplos/localStorage.
 
 ```sh
-npm run start:lan
+npm run build        # dist: build real, NO publica
+npm run build:demo   # dist-demo: maqueta
+npm run build:emulator # dist-emulator: solo emuladores
+npm run deploy:beta  # requiere login de CLI y revisión del destino; publica al proyecto real
 ```
 
-Abre en Chrome del móvil la dirección «Red local» que imprime la consola, por ejemplo `http://192.168.0.18:4173`. Mantén el PC encendido y el servidor activo. Si Windows pide permiso, permite solo redes privadas; no desactives el firewall. Algunas redes de invitados impiden conexiones entre dispositivos.
+El proyecto previsto es `marsito-beta`, con Spark, sin activar facturación, Storage, Functions ni SMS. Tener el dominio previsto `https://marsito-beta.web.app` no significa que ya se haya desplegado: hay que completar la guía y verificar HTTPS.
 
-El modo LAN expone solo los archivos públicos de la maqueta, pero no tiene autenticación real ni HTTPS: úsalo únicamente con datos ficticios, sin abrir puertos en el router. Los datos del móvil son independientes de los del PC. Para dejar de compartir, detén el servidor y vuelve a `npm start`, que escucha solo en el PC.
+## Funciones
 
-## Qué puedes hacer
+- **Calendario:** eventos con título, fecha, hora, descripción y URLs opcionales; asistencia propia sí/no y comentarios con autor.
+- **Tareas:** pendientes compartidos y completadas.
+- **Recetas:** ingredientes, instrucciones e imagen/enlace por URL.
+- **Menú semanal:** comida/cena, recetas existentes y semanas navegables.
+- **Cuentas:** gastos del usuario autenticado, reparto entre dos, confirmación de liquidación e historial paginado en Firebase.
 
-- **Calendario:** crear eventos con título, fecha, hora y descripción; imagen/enlace opcionales; asistencia sí/no y comentarios por perfil.
-- **Tareas:** añadir pendientes compartidos y marcarlos como hechos.
-- **Recetas:** ingredientes, instrucciones, imagen/enlace por URL y detalle de receta.
-- **Menú semanal:** asignar recetas existentes a comida/cena, recorrer semanas y retirar asignaciones.
-- **Cuentas:** registrar gastos pagados por el perfil activo, ver el reparto a partes iguales, confirmar una liquidación y conservar los ciclos anteriores.
-
-Los importes se calculan en céntimos. Si Álex paga 30 € y Sam 10 €, Sam debe a Álex **10 €**. Cuando el total tiene un céntimo impar, el primer perfil asume ese céntimo adicional. Liquidar archiva el ciclo y empieza uno vacío: **no hace pagos reales**.
+Importes en céntimos: si A paga 30 € y B 10 €, B debe a A **10 €**. Si el total es impar en céntimos, el primer perfil asume el extra. Liquidar registra un cierre: **no realiza pagos reales**.
 
 ## Pruebas
 
 ```sh
-npm test
 npx playwright install chromium
+npm test
+npm run test:firebase
 npm run test:e2e
+npm run test:e2e:firebase
+npm audit --omit=dev
 ```
 
-El primer comando prueba el almacén, fechas y cuentas. Playwright recorre la interfaz en Chromium de escritorio y móvil (emulación Pixel 7). También comprueba validación, persistencia, texto malicioso, URLs inseguras, estados vacíos y navegación sin desbordamiento horizontal.
+Las pruebas con emuladores se niegan a usar un proyecto real. Cubren autorizaciones, suplantación, validación, cierre de sesión/revocación, sincronización, carreras de liquidación y gasto, formularios pendientes/errores y navegador móvil/escritorio. La recepción real de correos y el despliegue requieren verificación controlada adicional.
+
+El SDK Firebase incluye una dependencia Node grpc antigua; se fija `@grpc/grpc-js` corregido para evitar sus avisos de seguridad. Revisar auditorías de herramientas de desarrollo por separado; no aplicar `npm audit fix --force` sin analizarlo, porque puede proponer degradaciones incompatibles.
 
 ## Estructura
 
-- `src/data/`: ejemplos y almacén versionado; única capa que persiste datos.
-- `src/lib/`: fechas locales, importes y utilidades de interfaz.
-- `src/components/`: acceso de demostración y estructura de navegación.
-- `src/views/`: pantallas de las secciones, como Web Components.
-- `scripts/serve.js`: servidor HTTP de desarrollo, limitado a archivos públicos de la maqueta.
-- `tests/`: pruebas unitarias y de navegador.
-- `docs/superpowers/`: diseño y plan aprobados.
+- `src/components/`, `src/views/`: Web Components e interfaz.
+- `src/data/store.js`, `src/data/seed.js`: demo local independiente.
+- `src/data/firebase-store.js`, `src/firebase/`: sesión, listeners y operaciones reales.
+- `src/config/`: configuración pública web y modos de compilación, sin credenciales administrativas.
+- `src/lib/`: fechas civiles, dinero y utilidades de interfaz.
+- `scripts/`: build con esbuild, servidor estático, emuladores y guard de despliegue.
+- `firestore.rules`, `firestore.indexes.json`, `firebase.json`: permisos y despliegue.
+- `tests/`: lógica, artefactos, reglas y flujos de navegador.
+- `docs/superpowers/`: diseños y planes aprobados; registros de revisión.
 
-## Límites importantes
-
-Es una **demostración**, no una aplicación de producción. No introduzcas información personal o sensible.
-
-- El acceso y el registro son simulados; no hay contraseñas, cuentas reales ni seguridad multiusuario.
-- Los dos perfiles comparten los datos **solo en este navegador y origen**. No hay sincronización entre dispositivos o pestañas en tiempo real. Cambiar de puerto u origen crea otro almacenamiento.
-- Borrar los datos del navegador elimina la maqueta guardada. Si el navegador bloquea el almacenamiento, se avisa y los cambios duran solo la sesión.
-- Firebase Auth, Firestore, reglas de seguridad, notificaciones y APK Android quedan para la siguiente fase.
-- Las imágenes opcionales se cargan desde las URLs que introduzcas; requieren conexión y contactan con ese servidor externo. La maqueta no sube archivos.
-- `npm start` escucha solo en `127.0.0.1`; `npm run start:lan` habilita interfaces IPv4 para pruebas desde la red local. Ninguno está pensado para publicar en producción.
-
-Los Web Components y los módulos ES son compatibles con un futuro empaquetado en un WebView Android moderno, pero todavía no se ha generado ni probado un APK.
+La configuración web y su API key son públicas por diseño; no deben confundirse con claves privadas o cuentas de servicio. El repositorio no incluye estas últimas. Sigue siendo una beta: no hay APK Android, notificaciones, pagos, grupos múltiples ni subida de archivos. El empaquetado en un WebView Android moderno queda para una fase posterior.
