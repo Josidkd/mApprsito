@@ -19,6 +19,34 @@ service cloud.firestore {
     match /betaMembers/{uid} { allow get: if signedIn() && request.auth.uid == uid; }
     match /spaces/{spaceId} {
       allow get: if isMember(spaceId);
+      allow update: if isMember(spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeCycleId'])
+        && request.resource.data.activeCycleId != resource.data.activeCycleId
+        && closedTogether(resource.data.activeCycleId, get(cyclePath(resource.data.activeCycleId)).data, getAfter(cyclePath(resource.data.activeCycleId)).data);
+      function cyclePath(id) { return /databases/$(database)/documents/spaces/$(spaceId)/cycles/$(id); }
+      function expensePath(cycleId, id) { return /databases/$(database)/documents/spaces/$(spaceId)/cycles/$(cycleId)/expenses/$(id); }
+      function emptyCycle(data) {
+        return data.keys().hasOnly(['status','paidA','paidB','count','lastExpenseId','createdAt','closedAt','settledBy','nextCycleId'])
+          && data.status == 'open' && data.paidA == 0 && data.paidB == 0 && data.count == 0 && data.lastExpenseId == null
+          && data.createdAt == request.time && data.closedAt == null && data.settledBy == null && data.nextCycleId == null;
+      }
+      function closedTogether(id, before, after) {
+        return before.status == 'open' && before.count > 0 && get(spacePath(spaceId)).data.activeCycleId == id
+          && after.diff(before).affectedKeys().hasOnly(['status','closedAt','settledBy','nextCycleId'])
+          && after.status == 'closed' && after.closedAt == request.time && after.settledBy == request.auth.uid
+          && after.nextCycleId is string && after.nextCycleId != id && !exists(cyclePath(after.nextCycleId))
+          && getAfter(spacePath(spaceId)).data.activeCycleId == after.nextCycleId && emptyCycle(getAfter(cyclePath(after.nextCycleId)).data);
+      }
+      function incremented(cycleId, before, after) {
+        let expense = getAfter(expensePath(cycleId, after.lastExpenseId)).data;
+        let isA = get(spacePath(spaceId)).data.profiles[0].id == request.auth.uid;
+        return before.status == 'open' && get(spacePath(spaceId)).data.activeCycleId == cycleId
+          && after.diff(before).affectedKeys().hasOnly(['paidA','paidB','count','lastExpenseId'])
+          && after.lastExpenseId is string && after.lastExpenseId.matches('[A-Za-z0-9_-]{1,128}')
+          && !exists(expensePath(cycleId, after.lastExpenseId)) && expense.profileId == request.auth.uid && expense.createdAt == request.time
+          && expense.cents is int && expense.cents > 0 && expense.cents <= 100000000
+          && after.paidA == before.paidA + (isA ? expense.cents : 0) && after.paidB == before.paidB + (isA ? 0 : expense.cents)
+          && after.count == before.count + 1 && after.paidA + after.paidB <= 9007199254740991;
+      }
       match /{kind}/{id} {
         allow read: if kind in ['events', 'tasks', 'recipes', 'menu', 'cycles'] && isMember(spaceId);
       }
@@ -60,7 +88,21 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['lunch','dinner']) && request.resource.data.keys().hasAll(['lunch','dinner'])
           && recipeExists(request.resource.data.lunch) && recipeExists(request.resource.data.dinner);
       }
-      match /cycles/{cycleId}/expenses/{expenseId} { allow read: if isMember(spaceId); }
+      match /cycles/{cycleId} {
+        allow create: if isMember(spaceId) && emptyCycle(request.resource.data)
+          && get(spacePath(spaceId)).data.activeCycleId != cycleId && getAfter(spacePath(spaceId)).data.activeCycleId == cycleId
+          && closedTogether(get(spacePath(spaceId)).data.activeCycleId, get(cyclePath(get(spacePath(spaceId)).data.activeCycleId)).data, getAfter(cyclePath(get(spacePath(spaceId)).data.activeCycleId)).data);
+        allow update: if isMember(spaceId) && (incremented(cycleId, resource.data, request.resource.data) || closedTogether(cycleId, resource.data, request.resource.data));
+      }
+      match /cycles/{cycleId}/expenses/{expenseId} {
+        allow read: if isMember(spaceId);
+        allow create: if isMember(spaceId) && authored(request.resource.data)
+          && request.resource.data.keys().hasOnly(['profileId','createdAt','concept','cents','date'])
+          && nonempty(request.resource.data.concept, 150) && validDate(request.resource.data.date)
+          && request.resource.data.cents is int && request.resource.data.cents > 0 && request.resource.data.cents <= 100000000
+          && getAfter(cyclePath(cycleId)).data.lastExpenseId == expenseId
+          && incremented(cycleId, get(cyclePath(cycleId)).data, getAfter(cyclePath(cycleId)).data);
+      }
     }
     match /{document=**} { allow read, write: if false; }
   }

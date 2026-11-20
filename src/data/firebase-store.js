@@ -3,7 +3,9 @@ import { createAuthController } from '../firebase/auth.js';
 import { createEvent, setAttendance, addComment } from '../firebase/events.js';
 import { createTask, toggleTask } from '../firebase/tasks.js';
 import { createRecipe, setMenu } from '../firebase/recipes.js';
-const actions = { 'recipe/add': createRecipe, 'menu/set': setMenu, 'event/add': createEvent, 'event/attendance': setAttendance, 'event/comment': addComment, 'task/add': createTask, 'task/toggle': toggleTask };
+import { addExpense, settleCycle, historyPage, cycleExpenses } from '../firebase/accounts.js';
+import { getBalanceFromPaid } from '../lib/money.js';
+const actions = { 'expense/add': addExpense, 'expense/settle': settleCycle, 'recipe/add': createRecipe, 'menu/set': setMenu, 'event/add': createEvent, 'event/attendance': setAttendance, 'event/comment': addComment, 'task/add': createTask, 'task/toggle': toggleTask };
 const dataFields = () => ({ profiles: [], activeProfileId: null, events: [], tasks: [], recipes: [], menu: {}, expenses: [], settlements: [], currentCycle: null, historyHasMore: false });
 export function firebaseError(error) {
   if (error.code === 'permission-denied') return new Error('No tienes permiso para esta operación. Revisa tu autorización.');
@@ -18,10 +20,12 @@ export function mapDocument(snapshot) {
 export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = () => globalThis.navigator?.onLine !== false }) {
   let state = { ...dataFields(), mode: 'firebase', authStatus: 'loading', user: null, error: '', connected: false, pendingCount: 0, storageWarning: '' };
   let generation = 0, sessionUnsubs = [], dataUnsubs = [], cycleUnsubs = [], cycleId = null, started = false, destroyed = false;
+  let historyCursor = null, historyJob = null, historyRefresh = false;
   const listeners = new Set();
   const notify = () => { if (!destroyed) listeners.forEach(fn => fn()); };
   const clearData = () => {
     dataUnsubs.splice(0).forEach(fn => fn()); cycleUnsubs.splice(0).forEach(fn => fn()); cycleId = null; started = false;
+    historyCursor = null; historyJob = null; historyRefresh = false;
     Object.assign(state, dataFields()); state.connected = false;
   };
   const failure = (error, epoch) => {
@@ -50,6 +54,7 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
       if (epoch !== generation || id !== cycleId || snapshot.metadata.fromCache) return;
       state.expenses = snapshot.docs.map(mapDocument); notify();
     }, error => failure(error, epoch)));
+    void store.loadHistoryPage(true).catch(error => { if (epoch === generation) { state.error = firebaseError(error).message; notify(); } });
   };
   const startData = async (user, epoch) => {
     if (started) return; started = true;
@@ -96,7 +101,10 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
       const action = actions[type]; if (!action) throw new Error('Operación no disponible.');
       const epoch = generation, uid = state.activeProfileId;
       state.pendingCount++; notify();
-      try { await action({ db, spaceId, uid }, payload, crypto.randomUUID()); }
+      try {
+        await action({ db, spaceId, uid }, payload, crypto.randomUUID());
+        if (epoch !== generation) throw new Error('La sesión cambió durante la operación.');
+      }
       catch (error) { if (epoch === generation && error.code === 'permission-denied') failure(error, epoch); throw firebaseError(error); }
       finally { if (epoch === generation) { state.pendingCount = Math.max(0, state.pendingCount - 1); notify(); } }
     },
@@ -109,6 +117,35 @@ export function createFirebaseStore({ auth, db, spaceId = 'marsito', online = ()
         if (event) { event.comments = snapshot.docs.map(mapDocument).sort((a, b) => a.createdAt.localeCompare(b.createdAt)); event.commentsLoaded = true; notify(); }
       }, error => failure(error, epoch));
       sessionUnsubs.push(unsubscribe); return unsubscribe;
+    },
+    async loadHistoryPage(reset = false) {
+      if (state.authStatus !== 'ready') return;
+      if (historyJob) { if (reset) historyRefresh = true; return historyJob; }
+      const epoch = generation, profiles = structuredClone(state.profiles), uid = state.activeProfileId;
+      if (reset) historyCursor = null;
+      const job = (async () => {
+        const result = await historyPage({ db, spaceId, uid }, historyCursor);
+        if (epoch !== generation || state.authStatus !== 'ready') return;
+        const previous = new Map(state.settlements.map(value => [value.id, value]));
+        for (const cycle of result.items) previous.set(cycle.id, { ...cycle, profiles, balance: getBalanceFromPaid(cycle, profiles), expenses: previous.get(cycle.id)?.expenses || [], expensesLoaded: previous.get(cycle.id)?.expensesLoaded || false });
+        state.settlements = [...previous.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        historyCursor = result.cursor; state.historyHasMore = result.hasMore; notify();
+      })();
+      historyJob = job;
+      try { await job; } finally {
+        if (historyJob === job) {
+          historyJob = null;
+          if (historyRefresh) { historyRefresh = false; void store.loadHistoryPage(true).catch(() => {}); }
+        }
+      }
+    },
+    async loadCycleExpenses(id) {
+      if (state.authStatus !== 'ready') throw new Error('Sesión no autorizada.');
+      const epoch = generation, uid = state.activeProfileId;
+      const expenses = await cycleExpenses({ db, spaceId, uid }, id);
+      if (epoch !== generation || state.authStatus !== 'ready') return;
+      const cycle = state.settlements.find(value => value.id === id);
+      if (cycle) { cycle.expenses = expenses; cycle.expensesLoaded = true; notify(); }
     },
     destroy() { destroyed = true; generation++; controller.destroy(); sessionUnsubs.splice(0).forEach(fn => fn()); clearData(); listeners.clear(); }
   };

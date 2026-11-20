@@ -15,6 +15,9 @@ export function getBalance(expenses, profiles) {
   const transfer = diff === 0 ? null : { from: diff > 0 ? b.id : a.id, to: diff > 0 ? a.id : b.id, cents: Math.abs(diff) };
   return { total, shares, transfer };
 }
+export function getBalanceFromPaid({ paidA, paidB }, profiles) {
+  return getBalance([{ profileId: profiles[0].id, cents: paidA }, { profileId: profiles[1].id, cents: paidB }], profiles);
+}
 export function euro(cents) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(cents / 100);
 }
