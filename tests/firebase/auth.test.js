@@ -1,6 +1,6 @@
 import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { testEnvironment } from './helpers.js';
 import { seedSpace } from './provision-fixture.js';
 import { makeUser, until, emulatorConfig } from './auth-helpers.js';
@@ -61,6 +61,30 @@ test('both approved users can load data, logout and revocation erase the private
   assert.equal(bob.getState().tasks.length, 0); assert.equal(bob.getState().activeProfileId, null);
   await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(bob.getState().tasks.length, 0);
+});
+test('a delayed authorized snapshot cannot restore access after membership revocation', async t => {
+  const a = await makeUser(t, 'delayed'), b = await makeUser(t, 'partner');
+  await seedSpace(env, { uidA: a.uid, uidB: b.uid });
+  const delayed = [];
+  const listen = (reference, ...args) => {
+    if (reference.path !== 'spaces/marsito') return onSnapshot(reference, ...args);
+    const [options, callback, onError] = args;
+    return onSnapshot(reference, options, snapshot => {
+      if (snapshot.metadata.fromCache) callback(snapshot);
+      else delayed.push(() => callback(snapshot));
+    }, onError);
+  };
+  const store = createFirebaseStore({ ...a, spaceId: 'marsito', online: () => true, listen });
+  t.after(() => store.destroy());
+  await until(() => delayed.length > 0);
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'betaMembers', a.uid), { enabled: false }));
+  await until(() => store.getState().authStatus === 'pending');
+  let restored = false;
+  const off = store.subscribe(() => { if (store.getState().authStatus === 'ready') restored = true; });
+  delayed.splice(0).forEach(callback => callback());
+  await new Promise(resolve => setTimeout(resolve, 100)); off();
+  assert.equal(restored, false, 'An old snapshot must not briefly restore ready/private state');
+  assert.equal(store.getState().profiles.length, 0);
 });
 test('wrong credentials never fall back to demo and errors do not echo the password', async t => {
   const client = await makeUser(t, 'wrong'); const store = storeFor(t, client);
